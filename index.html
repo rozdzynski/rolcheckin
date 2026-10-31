@@ -307,6 +307,14 @@ tr:hover td{background:#fafafa;}
 .summary-strip{display:flex;background:#fff;border:1px solid var(--border);border-radius:var(--radius);margin-bottom:14px;overflow:hidden;}
 .summary-strip>div{flex:1;padding:10px 14px;border-right:1px solid #f1f2f4;min-width:0;}
 .summary-strip>div:last-child{border-right:none;}
+.summary-strip.tap>div{position:relative;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:background .12s}
+.summary-strip.tap>div:hover,.summary-strip.tap>div:active{background:#f7f8fa}
+.summary-strip.tap>div::after{content:'›';position:absolute;top:7px;right:9px;font-size:15px;line-height:1;color:var(--muted,#8a919e)}
+.gl-tr.tap{cursor:pointer;-webkit-tap-highlight-color:transparent}.gl-tr.tap:hover,.gl-tr.tap:active{background:#f7f8fa}
+.gl-li-n{display:flex;gap:10px;font-size:12.5px;color:var(--slate);white-space:nowrap;text-align:right}.gl-li-n b{color:var(--ink);font-weight:700}
+.gl-dsec{font-size:10.5px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--slate);margin:16px 0 2px;display:flex;justify-content:space-between}
+.gl-dsec:first-child{margin-top:4px}.gl-dsec span{letter-spacing:0;text-transform:none;font-weight:600;color:var(--muted,#8a919e)}
+.gl-li .x{color:#b45309;font-weight:700}
 .summary-strip b{display:block;font-family:'Syne',sans-serif;font-size:20px;line-height:1.1;}
 .summary-strip span{font-size:9px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--slate);white-space:nowrap;}
 
@@ -836,7 +844,7 @@ input[type="date"]::-webkit-date-and-time-value,input[type="time"]::-webkit-date
       ⏳ Loading accounts from server…
     </div>
     <div id="loginError" class="msg-box msg-error">Invalid username or password.</div>
-    <div class="login-foot" onclick="versionTap()">Orland Park, IL · v2026.10.54</div>
+    <div class="login-foot" onclick="versionTap()">Orland Park, IL · v2026.10.55</div>
   </div>
 </div>
 
@@ -5870,7 +5878,7 @@ function renderGlance(el){
   const classesOf=t=>DB.classes.filter(c=>!c.archived&&c.team===t).length;
   const mx=Math.max(1,...teams.map(t=>S.per[t].checkins));
   const rows=teams.filter(t=>g.team||staffOf(t)||classesOf(t)||S.per[t].checkins||S.per[t].missed).map(t=>{const p=S.per[t],cov=p.sched?Math.round(p.covered/p.sched*100):null,st=staffOf(t),cl=classesOf(t);
-    return `<div class="gl-tr" title="${rvTeamName(t)}: ${p.checkins} check-ins, ${p.subs} subs, ${p.missed} classes missed${cov!=null?', '+cov+'% covered ('+p.covered+' of '+p.sched+')':''}">
+    return `<div class="gl-tr tap" role="button" tabindex="0" onclick="openGlanceTeam('${t}')" onkeydown="if(event.key==='Enter')openGlanceTeam('${t}')" title="${rvTeamName(t)}: ${p.checkins} check-ins, ${p.subs} subs, ${p.missed} classes missed${cov!=null?', '+cov+'% covered ('+p.covered+' of '+p.sched+')':''}">
       <div class="gl-tn"><b>${rvTeamName(t)}</b><small>${st} staff · ${cl} class${cl===1?'':'es'}</small></div>
       <div class="gl-tb"><div class="gl-bar"><i style="width:${(p.checkins/mx*100).toFixed(0)}%"></i></div><span>${p.checkins}</span></div>
       <div class="gl-tc">${p.subs}</div><div class="gl-tc">${p.missed}</div><div class="gl-tc${cov!=null&&cov<90?' low':''}">${cov==null?'—':cov+'%'}</div></div>`;}).join('');
@@ -5882,7 +5890,7 @@ function renderGlance(el){
     <div class="gl-att">${att||'<div class="gl-att-ok">✓ All good. Nothing needs attention.</div>'}</div>
     <div class="gl-sect">By team <span>${R.label}</span></div>
     <div class="gl-table"><div class="gl-th"><span>Team</span><span>Check-ins</span><span>Subs</span><span>Missed</span><span>Covered</span></div>${rows}</div>
-    <div class="gl-foot">Covered = scheduled classes that got a check-in, through yesterday. Missed = classes off for time off, counted like the Time Off tab.</div>`;
+    <div class="gl-foot">Tap a team for details. Covered = scheduled classes that got a check-in, through yesterday. Missed = classes off for time off, counted like the Time Off tab.</div>`;
 }
 // Lists behind each "Needs attention" line
 function openGlanceList(kind){
@@ -5905,6 +5913,48 @@ function openGlanceList(kind){
   document.getElementById('glListSub').textContent=sub;
   document.getElementById('glListBody').innerHTML=rows||'<div class="gl-li"><span>Nothing here.</span></div>';
   openModal('modalGlanceList');
+}
+
+// Tap a row in "By team" → who checked in, who was off, and which scheduled classes had no check-in
+function openGlanceTeam(team){
+  const g=_glance[glanceKey()],R=glanceRange(g.period),admin=currentUser.role==='admin';
+  const {from,to}=R,yday=addDays(todayStr(),-1),cEnd=to<yday?to:yday;
+  // Check-ins by person
+  const cks=DB.checkins.filter(c=>!c.archived&&c.date>=from&&c.date<=to&&ciTeamKey(c)===team);
+  const per={};cks.forEach(c=>{const p=per[c.instructorId]||(per[c.instructorId]={own:0,sub:0,extra:0});if(c.type==='sub')p.sub++;else if(isExtra(c))p.extra++;else p.own++;});
+  const people=Object.entries(per).map(([id,p])=>({id,name:(getInstructor(id)||{name:'?'}).name,...p,total:p.own+p.sub+p.extra})).sort((a,b)=>b.total-a.total||a.name.localeCompare(b.name));
+  const ckRows=people.map(p=>`<div class="gl-li"${admin?` role="button" onclick="glanceOpenReports('${p.id}','${team}','${from}','${to}')"`:''}><span>${rvEsc(p.name)}<small>${[p.own&&p.own+' own',p.sub&&p.sub+' sub',p.extra&&`<span class="x">${p.extra} extra</span>`].filter(Boolean).join(' · ')}</small></span><div class="gl-li-n"><b>${p.total}</b></div>${admin?'<i>›</i>':''}</div>`).join('');
+  // Missed (time off), counted the same way as the KPI
+  const miss=DB.timeOff.filter(t=>t.startDate>=from&&t.startDate<=to).map(t=>({t,n:(glanceMissedSplit(t)[team]||0)})).filter(x=>x.n>0).sort((a,b)=>b.t.startDate.localeCompare(a.t.startDate));
+  const missRows=miss.map(({t,n})=>`<div class="gl-li"><span>${rvEsc((getInstructor(t.instructorId)||{name:'?'}).name)}<small>${fmtRange(t.startDate,t.endDate)} · ${(REASON_TAGS[t.reason]||[t.reason||'Other'])[0]}${t.autoGenerated?' · sub logged':''}</small></span><div class="gl-li-n"><b>${n}</b> class${n===1?'':'es'}</div></div>`).join('');
+  // Not covered: scheduled, nobody checked in (through yesterday)
+  const open=[];
+  if(from<=cEnd){
+    const ck=new Set(DB.checkins.filter(c=>!c.archived&&c.date>=from&&c.date<=cEnd).map(c=>c.classId+'|'+c.date));
+    for(let ds=cEnd;ds>=from;ds=addDays(ds,-1))glanceScheduled(ds,[team]).forEach(cl=>{if(!ck.has(cl.id+'|'+ds))open.push({ds,cl});});
+  }
+  const MAX=60;
+  const openRows=open.slice(0,MAX).map(({ds,cl})=>`<div class="gl-li"${admin?` role="button" onclick="closeModal('modalGlanceList');openAddCheckinFor('${(cl.instructors||[])[0]||''}','${cl.id}');document.getElementById('ciDateInput').value='${ds}'"`:''}><span>${rvEsc(cl.name)}<small>${new Date(ds+'T00:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'})}${classStartTime(cl)?' · '+classStartTime(cl):''} · ${rvEsc(cl.instructors.map(id=>(getInstructor(id)||{}).name).filter(Boolean).join(', '))}</small></span>${admin?'<i>+</i>':''}</div>`).join('')+(open.length>MAX?`<div class="gl-li"><span><small>…and ${open.length-MAX} more</small></span></div>`:'');
+  const p=glanceStats(from,to,[team]).per[team];
+  const sec=(t,n,body,empty)=>`<div class="gl-dsec">${t}<span>${n}</span></div>${body||`<div class="gl-li"><span><small>${empty}</small></span></div>`}`;
+  document.getElementById('glListTitle').textContent=rvTeamName(team);
+  document.getElementById('glListSub').textContent=R.label+' · '+p.checkins+' check-ins · '+(p.sched?Math.round(p.covered/p.sched*100)+'% covered ('+p.covered+' of '+p.sched+')':'no scheduled classes yet');
+  document.getElementById('glListBody').innerHTML=
+    sec('Check-ins by person',cks.length,ckRows,'No check-ins in this period.')+
+    sec('Missed · time off',p.missed+' class'+(p.missed===1?'':'es'),missRows,'Nobody was off.')+
+    sec('Not covered',open.length+' class'+(open.length===1?'':'es'),openRows,from<=cEnd?'Every scheduled class got a check-in. 🎉':'Starts counting tomorrow.')+
+    (admin&&open.length?'<div class="gl-foot" style="margin-top:8px">Tap + to add a check-in for that class and date.</div>':'');
+  openModal('modalGlanceList');
+}
+function glanceOpenReports(iid,team,from,to){
+  closeModal('modalGlanceList');
+  switchPage('pageReports');
+  if(typeof setReportSubtab==='function')try{setReportSubtab('records');}catch(e){}
+  populateReportFilters();
+  const set=(id,v)=>{const el=document.getElementById(id);if(el)el.value=v;};
+  ['filterClass','filterType'].forEach(id=>set(id,''));
+  set('filterInstructor',iid);set('filterTeam',team);set('filterDateFrom',from);set('filterDateTo',to);
+  renderReports();
 }
 
 // Photo if there is one, otherwise the person's initials
@@ -6788,9 +6838,12 @@ function renderTimeOff(){
   const excCell=excusedCount?`<div><b style="color:#15803d">${excusedCount}</b><span>Excused</span></div>`:'';
   const totalsEl=document.getElementById('timeOffTotals');
   if(totalsEl){
+    const tap=k=>` role="button" tabindex="0" onclick="openToBreakdown('${k}')" onkeydown="if(event.key==='Enter')openToBreakdown('${k}')"`;
+    const excT=excusedCount?`<div${tap('excused')}><b style="color:#15803d">${excusedCount}</b><span>Excused</span></div>`:'';
+    totalsEl.classList.add('tap');
     totalsEl.innerHTML=isInstrView
-      ?`<div><b>${totalDays}</b><span>Days off · ${yearLabel}</span></div><div><b>${totalClasses}</b><span>Classes missed</span></div>${excCell}`
-      :`<div><b>${totalDays}</b><span>Days off · ${yearLabel}</span></div><div><b>${totalClasses}</b><span>Classes</span></div><div><b>${instrCount}</b><span>Staff</span></div>${excCell}`;
+      ?`<div${tap('days')}><b>${totalDays}</b><span>Days off · ${yearLabel}</span></div><div${tap('classes')}><b>${totalClasses}</b><span>Classes missed</span></div>${excT}`
+      :`<div${tap('days')}><b>${totalDays}</b><span>Days off · ${yearLabel}</span></div><div${tap('classes')}><b>${totalClasses}</b><span>Classes</span></div><div${tap('staff')}><b>${instrCount}</b><span>Staff</span></div>${excT}`;
   }
 
   // ── Row renderer ──
@@ -6829,6 +6882,68 @@ function renderTimeOff(){
   pt.innerHTML=`<span>Past time off (${past.length})</span><span>${_toPastOpen?'▾':'▸'}</span>`;
   pl.style.display=past.length&&_toPastOpen?'':'none';
   pl.innerHTML=past.map(toRow).join('');
+}
+
+// ── Tap a box in the Time Off summary → the breakdown behind that number (same filters as the page) ──
+function toBreakdownData(){
+  const isInstrView=toMineView();
+  const filterInstr=isInstrView?'':(document.getElementById('toFilterInstructor')?.value||'');
+  const yearLabel=document.getElementById('toFilterYear')?.value||String(new Date().getFullYear());
+  const visibleIds=new Set(toVisibleInstructors().map(i=>i.id));
+  let entries=DB.timeOff.filter(t=>visibleIds.has(t.instructorId));
+  if(isInstrView)entries=entries.filter(t=>t.instructorId===currentUser.id);
+  else if(filterInstr)entries=entries.filter(t=>t.instructorId===filterInstr);
+  const inYear=t=>t.startDate.startsWith(yearLabel)||t.endDate.startsWith(yearLabel);
+  const yearEntries=entries.filter(t=>inYear(t)&&countsAgainstAllowance(t));
+  return {isInstrView,yearLabel,entries,yearEntries,inYear};
+}
+function toAllowanceLine(i,yearLabel){
+  if(!i||yearLabel!==String(new Date().getFullYear()))return '';
+  const allowed=i.offAllowanceCount||0;if(!(allowed>0))return '';
+  const unit=i.offAllowanceType==='days'?'days':'classes',taken=unit==='days'?daysOffThisYearCount(i.id):classesOffThisYear(i.id),left=allowed-taken;
+  return `${taken} of ${allowed} ${unit} used · ${left<0?`<b style="color:var(--rust)">${-left} over</b>`:left+' left'}`;
+}
+function openToBreakdown(kind){
+  const D=toBreakdownData(),y=D.yearLabel;
+  const daysIn=t=>countedDaysOf(t).filter(ds=>ds.startsWith(y));
+  let title='',sub='',rows='';
+  const entryRow=(t,showName,tapPerson)=>{const i=getInstructor(t.instructorId),c=countedClasses(t),d=daysIn(t).length;
+    const what=isExcused(t)?'<span class="tag tag-excused">Excused</span>':(c||d)?`${d} day${d===1?'':'s'} · ${c} class${c===1?'':'es'}`:'Not counted';
+    return `<div class="gl-li"${tapPerson?` role="button" onclick="toFilterPerson('${t.instructorId}')"`:''}><span>${showName?rvEsc(i?i.name:'—'):fmtRange(t.startDate,t.endDate)}<small>${showName?fmtRange(t.startDate,t.endDate)+' · ':''}${(REASON_TAGS[t.reason]||[t.reason||'Other'])[0]}${t.note?' · '+rvEsc(t.note):''}</small></span><div class="gl-li-n">${what}</div>${tapPerson?'<i>›</i>':''}</div>`;};
+  if(D.isInstrView){
+    const me=getInstructor(currentUser.id)||currentUser;
+    const list=D.entries.filter(D.inYear).sort((a,b)=>a.startDate.localeCompare(b.startDate));
+    const yE=list.filter(countsAgainstAllowance);
+    const days=new Set(yE.flatMap(daysIn)).size,cls=yE.reduce((a,t)=>a+countedClasses(t),0);
+    title='My time off · '+y;
+    sub=`${days} day${days===1?'':'s'} off · ${cls} class${cls===1?'':'es'} missed`+(toAllowanceLine(me,y)?' · '+toAllowanceLine(me,y).replace(/<[^>]+>/g,''):'');
+    rows=list.map(t=>entryRow(t,false,false)).join('');
+  }else if(kind==='excused'){
+    const list=D.yearEntries.filter(t=>t.excused).sort((a,b)=>b.startDate.localeCompare(a.startDate));
+    title='Excused time off · '+y;sub='Kept on record but not deducted from anyone\'s allowance. Tap a name to see their time off.';
+    rows=list.map(t=>entryRow(t,true,true)).join('');
+  }else{
+    const per={};
+    D.yearEntries.forEach(t=>{const p=per[t.instructorId]||(per[t.instructorId]={days:new Set(),classes:0,excused:0});daysIn(t).forEach(ds=>p.days.add(ds));p.classes+=countedClasses(t);if(t.excused)p.excused++;});
+    let list=Object.entries(per).map(([id,p])=>({i:getInstructor(id)||{id,name:'?'},days:p.days.size,classes:p.classes,excused:p.excused}));
+    const byName=(a,b)=>a.i.name.localeCompare(b.i.name);
+    list.sort(kind==='days'?(a,b)=>b.days-a.days||byName(a,b):kind==='classes'?(a,b)=>b.classes-a.classes||byName(a,b):byName);
+    title={days:'Days off',classes:'Classes missed',staff:'Staff with time off'}[kind]+' · '+y;
+    sub=(kind==='staff'?'Everyone with time off this year':'Highest first')+'. Tap a name to see their time off.';
+    rows=list.map(r=>{const al=toAllowanceLine(r.i,y);return `<div class="gl-li" role="button" onclick="toFilterPerson('${r.i.id}')"><span>${rvEsc(r.i.name)}${al?`<small>${al}</small>`:''}</span><div class="gl-li-n"><span${kind==='days'?' style="color:var(--ink);font-weight:700"':''}>${r.days}d</span><span${kind==='classes'?' style="color:var(--ink);font-weight:700"':''}>${r.classes} cl</span>${r.excused?`<span style="color:#15803d">${r.excused} exc</span>`:''}</div><i>›</i></div>`;}).join('');
+  }
+  document.getElementById('glListTitle').textContent=title;
+  document.getElementById('glListSub').textContent=sub;
+  document.getElementById('glListBody').innerHTML=rows||'<div class="gl-li"><span>Nothing here.</span></div>';
+  openModal('modalGlanceList');
+}
+function toFilterPerson(id){
+  closeModal('modalGlanceList');
+  const sel=document.getElementById('toFilterInstructor');if(!sel)return;
+  sel.value=id;if(sel.value!==id)return;
+  if(typeof toView!=='undefined'&&toView==='calendar')setToView('list');
+  renderTimeOff();
+  const w=document.getElementById('timeOffTotals');if(w)w.scrollIntoView({behavior:'smooth',block:'start'});
 }
 
 const BULK_TEAMS=[['adults','Adults'],['kids','Kids'],['fitness','Fitness'],['striking','Striking'],['fis','FIS'],['roltv','RŌL TV']];
