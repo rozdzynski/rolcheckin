@@ -832,6 +832,20 @@ canvas.hol-flag{width:30px;height:20px;flex:none;border-radius:2px}
 .hol-sw{width:44px;height:26px;border-radius:999px;background:#d1d5db;position:relative;flex:none;cursor:pointer;border:0;transition:background .2s}
 .hol-sw:after{content:'';position:absolute;top:2px;left:2px;width:22px;height:22px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .2s}
 .hol-sw.on{background:#34c759}.hol-sw.on:after{left:20px}
+
+/* ── Closure reminder ── */
+.cl-card{background:#fffbeb;border:1px solid #fde68a;border-radius:12px;padding:12px;margin-bottom:8px}
+.cl-card .cl-h{display:flex;gap:9px;align-items:flex-start}.cl-card .cl-e{font-size:22px;line-height:1}
+.cl-card .cl-h b{font-size:14px;display:block}.cl-card .cl-h small{display:block;font-size:12px;color:#7c5a12;margin-top:2px;line-height:1.4}
+.cl-card .cl-in{font-size:10.5px;font-weight:700;color:#b45309;background:#fef3c7;border-radius:999px;padding:2px 8px;margin-left:auto;white-space:nowrap}
+.cl-card .cl-b{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:10px}
+.cl-card .cl-b button{font:inherit;font-size:12.5px;font-weight:700;border-radius:9px;padding:9px 6px;cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--ink2)}
+.cl-card .cl-b .pri{grid-column:1/-1;background:var(--primary);border-color:var(--primary);color:#fff}
+.cl-card .cl-b .gh{background:transparent;border-color:transparent;color:var(--slate)}
+.cl-card .cl-b button:disabled{opacity:.6}
+#clToast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translate(-50%,8px);width:min(440px,calc(100vw - 24px));background:#0d0f12;color:#fff;border-radius:10px;padding:11px 14px;font-size:13px;display:flex;gap:10px;align-items:center;opacity:0;transition:.3s;pointer-events:none;z-index:9500;box-shadow:0 10px 30px rgba(0,0,0,.3)}
+#clToast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
+#clToast button{margin-left:auto;background:none;border:0;color:#93c5fd;font:inherit;font-weight:700;cursor:pointer;padding:2px 4px}
 </style>
 </head>
 <body>
@@ -857,7 +871,7 @@ canvas.hol-flag{width:30px;height:20px;flex:none;border-radius:2px}
       ⏳ Loading accounts from server…
     </div>
     <div id="loginError" class="msg-box msg-error">Invalid username or password.</div>
-    <div class="login-foot" onclick="versionTap()">Orland Park, IL · v2026.10.56</div>
+    <div class="login-foot" onclick="versionTap()">Orland Park, IL · v2026.10.57</div>
   </div>
 </div>
 
@@ -2470,8 +2484,9 @@ async function loadFromWix(opts={}){
     if(Array.isArray(docItems))DB.docs=docItems.map(rowToDoc);
     // Earned time off: starting counts entered by the admin (classes taught before the app's official launch)
     if(_session){
-      try{const cf=await supaFetch('ROLConfig?key=eq.app.holidays&select=value');if(cf&&cf[0])holSetLocal(cf[0].value!=='off');holRenderStrip();}
-      catch(e){dbg('Holiday setting: '+e.message,'#888');}
+      try{const cf=await supaFetch('ROLConfig?key=like.app.*&select=key,value');const m={};(cf||[]).forEach(r=>m[r.key]=r.value||'');DB.appConfig=m;
+        if('app.holidays' in m)holSetLocal(m['app.holidays']!=='off');holRenderStrip();}
+      catch(e){dbg('App settings: '+e.message,'#888');}
       try{const es=await supaFetch('ROLEarnStart?select=instructorId,year,classes');const m={};es.forEach(r=>{(m[r.instructorId]=m[r.instructorId]||{})[r.year]=Number(r.classes)||0;});DB.earnStart=m;}
       catch(e){dbg('Starting counts: '+e.message,'#888');}
     }
@@ -5904,7 +5919,7 @@ function renderGlance(el){
   el.innerHTML=`<div class="gl-ctl"><div class="segmented gl-seg">${['week','month','year'].map(p=>`<button class="segment${g.period===p?' active':''}" onclick="setGlance('period','${p}')">${p[0].toUpperCase()+p.slice(1)}</button>`).join('')}</div>${teamOpts}</div>
     <div class="gl-range">${R.label}${g.team?' · '+rvTeamName(g.team):''}</div>
     ${todayHTML}${kpis}
-    <div class="gl-sect">Needs attention</div>
+    <div class="gl-sect">Needs attention</div>${admin?clCardHTML():''}
     <div class="gl-att">${att||'<div class="gl-att-ok">✓ All good. Nothing needs attention.</div>'}</div>
     <div class="gl-sect">By team <span>${R.label}</span></div>
     <div class="gl-table"><div class="gl-th"><span>Team</span><span>Check-ins</span><span>Subs</span><span>Missed</span><span>Covered</span></div>${rows}</div>
@@ -7025,6 +7040,7 @@ function saveBulkTimeOff(){
   logAuditAction('Bulk added','Time Off',added+' instructor'+(added===1?'':'s'),(reason==='closure'?'Studio closed':'Holiday')+' '+startDate+' to '+endDate+(skipped?` (${skipped} already existed)`:''));
   closeModal('modalBulkTimeOff');
   renderTimeOff();
+  rerenderActivePage();
 }
 
 function openAddTimeOff(){
@@ -7423,6 +7439,104 @@ document.addEventListener('DOMContentLoaded',()=>{
   setTimeout(()=>{try{holOnLogin();}catch(e){}},700);
   document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'){try{holRenderStrip();if(document.getElementById('mainScreen').classList.contains('active'))holOnMain();else holOnLogin();}catch(e){}}});
 });
+
+// ══ CLOSURE REMINDER ══
+// Two weeks before a holiday the academy may close for, admins get a Dashboard card:
+// "Closed" adds a holiday closure for everyone (with Undo), "Different dates…" opens the bulk form filled in,
+// "We're open" hides it for that holiday (saved for all admins in ROLConfig as app.closure.<id>).
+const CL_LEAD_DAYS=14;
+function clAsksOf(y){
+  const thx=holNth(y,11,4,4),mem=holLast(y,5,1),lab=holNth(y,9,1,1);
+  return [
+    {id:'ny-'+y,e:'🎉',n:"New Year's Eve & Day",note:"New Year's",days:[_hd(y,12,31),_hd(y+1,1,1)]},
+    {id:'mem-'+y,e:'🇺🇸',n:'Memorial Day',note:'Memorial Day',days:[mem]},
+    {id:'jul-'+y,e:'🎆',n:'Fourth of July',note:'Fourth of July',days:[_hd(y,7,4)]},
+    {id:'lab-'+y,e:'☀️',n:'Labor Day',note:'Labor Day',days:[lab]},
+    {id:'thx-'+y,e:'🦃',n:'Thanksgiving',note:'Thanksgiving',days:[thx]},
+    {id:'xmas-'+y,e:'🎄',n:'Christmas Eve & Day',note:'Christmas',days:[_hd(y,12,24),_hd(y,12,25)]},
+  ];
+}
+function clCfg(){return DB.appConfig||(DB.appConfig={});}
+function clAnsweredOpen(a){
+  if(clCfg()['app.closure.'+a.id]==='open')return true;
+  try{return localStorage.getItem(STORE_KEY+'_cl_'+a.id)==='open';}catch(e){return false;}
+}
+function clHasClosure(a){return a.days.some(ds=>DB.timeOff.some(t=>NO_ALLOWANCE_REASONS.includes(t.reason)&&t.startDate<=ds&&t.endDate>=ds));}
+function clActive(){
+  const today=holToday(),y=+today.slice(0,4);
+  return [...clAsksOf(y-1),...clAsksOf(y)].filter(a=>today>=holAdd(a.days[0],-CL_LEAD_DAYS)&&today<=a.days[a.days.length-1]&&!clAnsweredOpen(a)&&!clHasClosure(a))
+    .sort((a,b)=>a.days[0].localeCompare(b.days[0]));
+}
+function clDayLbl(ds,opt){return new Date(ds+'T12:00:00').toLocaleDateString('en-US',opt);}
+function clRangeLbl(a){
+  const f=a.days[0],l=a.days[a.days.length-1];
+  if(f===l)return clDayLbl(f,{weekday:'short',month:'short',day:'numeric'});
+  const sameMonth=f.slice(0,7)===l.slice(0,7);
+  return clDayLbl(f,{weekday:'short'})+'–'+clDayLbl(l,{weekday:'short'})+', '+(sameMonth?clDayLbl(f,{month:'short'})+' '+(+f.slice(8))+'–'+(+l.slice(8)):clDayLbl(f,{month:'short',day:'numeric'})+' – '+clDayLbl(l,{month:'short',day:'numeric'}));
+}
+function clCardHTML(){
+  if(!currentUser||currentUser.role!=='admin')return '';
+  const list=clActive();if(!list.length)return '';
+  const today=holToday(),teams=glanceTeams();
+  return list.map(a=>{
+    const n=Math.round((new Date(a.days[0]+'T12:00:00')-new Date(today+'T12:00:00'))/864e5);
+    const when=n<=0?(today<=a.days[a.days.length-1]&&n<0?'now':'today'):n===1?'tomorrow':'in '+n+' days';
+    const cls=a.days.reduce((s,ds)=>s+glanceScheduled(ds,teams).length,0);
+    const one=a.days.length===1;
+    const btn=one?'🔒 Closed '+clDayLbl(a.days[0],{weekday:'long',month:'short',day:'numeric'}):'🔒 Closed both days';
+    return `<div class="cl-card" data-cl="${a.id}"><div class="cl-h"><span class="cl-e" aria-hidden="true">${a.e}</span><div><b>${a.n} ${one?'is':'are'} ${clRangeLbl(a)}</b><small>Is the academy closed? ${cls} class${cls===1?' is':'es are'} scheduled ${one?'that day':'those days'}.</small></div><span class="cl-in">${when}</span></div>
+      <div class="cl-b"><button type="button" class="pri" onclick="clClose('${a.id}',this)">${btn}</button><button type="button" onclick="clDifferent('${a.id}')">Different dates…</button><button type="button" class="gh" onclick="clOpen('${a.id}',this)">We're open</button></div></div>`;
+  }).join('');
+}
+function clFind(id){const y=+id.split('-')[1];return clAsksOf(y).find(a=>a.id===id);}
+let _clUndo=null;
+function clToast(msg,undo){
+  let el=document.getElementById('clToast');
+  if(!el){el=document.createElement('div');el.id='clToast';el.setAttribute('role','status');document.body.appendChild(el);}
+  el.innerHTML=`<span></span>${undo?'<button type="button">Undo</button>':''}`;el.firstChild.textContent=msg;
+  _clUndo=undo||null;if(undo)el.querySelector('button').onclick=()=>{el.classList.remove('show');const u=_clUndo;_clUndo=null;if(u)u();};
+  requestAnimationFrame(()=>el.classList.add('show'));clearTimeout(clToast._t);clToast._t=setTimeout(()=>{el.classList.remove('show');_clUndo=null;},6000);
+}
+function clClose(id,btn){
+  if(!currentUser||currentUser.role!=='admin')return;
+  const a=clFind(id);if(!a)return;if(btn)btn.disabled=true;
+  const startDate=a.days[0],endDate=a.days[a.days.length-1],people=sortedInstructors().filter(i=>!i.archived);
+  const made=[],saves=[];
+  people.forEach(i=>{
+    if(DB.timeOff.some(t=>t.instructorId===i.id&&t.startDate===startDate&&t.endDate===endDate&&NO_ALLOWANCE_REASONS.includes(t.reason)))return;
+    const entry={id:uid(),instructorId:i.id,startDate,endDate,reason:'holiday',classesMissed:null,note:a.note};
+    DB.timeOff.push(entry);made.push(entry);saves.push(wixSaveTimeOff(entry));
+  });
+  save();
+  logAuditAction('Bulk added','Time Off',made.length+' instructor'+(made.length===1?'':'s'),'Holiday '+startDate+' to '+endDate+' ('+a.note+', from the Dashboard reminder)');
+  rerenderActivePage();
+  clToast(`🔒 Closed ${clRangeLbl(a)} for everyone (${made.length} ${made.length===1?'person':'people'})`,async()=>{
+    await Promise.all(saves).catch(()=>{});
+    made.forEach(e=>{DB.timeOff=DB.timeOff.filter(t=>t!==e);wixDeleteTimeOff(e.id);});
+    save();logAuditAction('Undid','Time Off',made.length+' instructor'+(made.length===1?'':'s'),'Holiday '+startDate+' to '+endDate+' ('+a.note+')');
+    rerenderActivePage();
+  });
+}
+function clDifferent(id){
+  const a=clFind(id);if(!a)return;
+  openBulkTimeOff();
+  document.getElementById('bulkReason').value='holiday';
+  document.getElementById('bulkStart').value=a.days[0];
+  document.getElementById('bulkEnd').value=a.days[a.days.length-1];
+  document.getElementById('bulkNote').value=a.note;
+  updateBulkSummary();
+}
+async function clSetAnswer(id,val){
+  clCfg()['app.closure.'+id]=val;
+  try{val?localStorage.setItem(STORE_KEY+'_cl_'+id,val):localStorage.removeItem(STORE_KEY+'_cl_'+id);}catch(e){}
+  try{await supaFetch('ROLConfig?on_conflict=key',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'app.closure.'+id,value:val,updated_at:new Date().toISOString()})});}
+  catch(e){dbg('Closure answer not shared (run rol-holiday-setting.sql): '+e.message,'#888');}
+}
+function clOpen(id,btn){
+  const a=clFind(id);if(!a)return;if(btn)btn.disabled=true;
+  clSetAnswer(id,'open');logAuditAction('Marked open','Holiday',a.n,clRangeLbl(a));rerenderActivePage();
+  clToast(`Got it. You're open for ${a.n}.`,()=>{clSetAnswer(id,'');rerenderActivePage();});
+}
 // In-app replacement for the browser's alert() box
 // Tap the version on the login screen 5 times to show the Debug button and sync dot
 let _vTaps=0,_vTapTimer=null;
