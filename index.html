@@ -892,7 +892,7 @@ canvas.hol-flag{width:30px;height:20px;flex:none;border-radius:2px}
       ⏳ Loading accounts from server…
     </div>
     <div id="loginError" class="msg-box msg-error">Invalid username or password.</div>
-    <div class="login-foot" onclick="versionTap()">Orland Park, IL · v2026.11.3</div>
+    <div class="login-foot" onclick="versionTap()">Orland Park, IL · v2026.11.4</div>
   </div>
 </div>
 
@@ -7584,8 +7584,13 @@ function clOpen(id,btn){
 // made elsewhere are saved as "away" so admins can see them. Only at/away/none + distance are stored.
 // The academy's location is fixed (RŌL Academy, 15629 71st Ct, Orland Park, IL 60462) and can't be changed in the app.
 const SM_ACADEMY={lat:41.6068205,lng:-87.7928087,label:'15629 71st Ct, Orland Park, IL 60462'};
-const SM_DEFAULT={enabled:true,radius:150,auto:true,flag:true,before:30,after:15};
-function smCfg(){let c={};try{c=JSON.parse((DB.appConfig||{})['app.smart']||'{}')||{};}catch(e){}const o=Object.assign({},SM_DEFAULT,c);o.lat=SM_ACADEMY.lat;o.lng=SM_ACADEMY.lng;return o;}
+// Fixed rules: away check-ins are always flagged; auto check-in runs 15 min before to 15 min after class start.
+// Admins can change only: on/off, zone size (100 or 250 ft), and auto check-in on/off.
+const SM_ZONES_FT=[100,250];
+const SM_DEFAULT={enabled:true,radiusFt:250,auto:true};
+function smCfg(){let c={};try{c=JSON.parse((DB.appConfig||{})['app.smart']||'{}')||{};}catch(e){}const o=Object.assign({},SM_DEFAULT,c);
+  if(!SM_ZONES_FT.includes(o.radiusFt))o.radiusFt=SM_DEFAULT.radiusFt;
+  o.radius=o.radiusFt*0.3048;o.flag=true;o.before=15;o.after=15;o.lat=SM_ACADEMY.lat;o.lng=SM_ACADEMY.lng;return o;}
 function smConfigured(){return smCfg().enabled!==false;}
 function smForMe(){return smConfigured()&&currentUser&&currentUser.role!=='admin'&&!!(navigator.geolocation);}
 function smConsent(){try{return localStorage.getItem(STORE_KEY+'_smart_'+currentUser.id)||'';}catch(e){return '';}}
@@ -7634,7 +7639,7 @@ function smCandidate(){
 function smBanner(){
   const L=_smLoc;if(!L)return '<div class="sm-banner none">📍<div>Checking your location…</div></div>';
   if(L.status==='at')return '<div class="sm-banner at">📍<div>You\'re at RŌL Academy<small>Checked just now</small></div></div>';
-  if(L.status==='away')return `<div class="sm-banner away">📍<div>You don't seem to be at the academy<small>About ${smFmtDist(L.dist)} away${smCfg().flag?' · check-ins from here are flagged':''}</small></div><button type="button" onclick="smRefresh()">Check again</button></div>`;
+  if(L.status==='away')return `<div class="sm-banner away">📍<div>You don't seem to be at the academy<small>About ${smFmtDist(L.dist)} away · check-ins from here are flagged</small></div><button type="button" onclick="smRefresh()">Check again</button></div>`;
   return `<div class="sm-banner none">📍<div>${L.denied?'Location is off for this app':'Couldn\'t get your location'}<small>Check-in works as usual.${L.denied?' To turn it on: iPhone Settings → Privacy → Location Services.':''}</small></div>${L.denied?'':'<button type="button" onclick="smRefresh()">Try again</button>'}</div>`;
 }
 function smWrap(){return document.getElementById('smartWrap');}
@@ -7694,19 +7699,16 @@ function smRenderAdmin(){
   const el=document.getElementById('smartAdminCard');if(!el)return;
   if(!currentUser||currentUser.role!=='admin'){el.innerHTML='';return;}
   const c=smCfg(),on=smConfigured();
-  const seg=(key,vals,fmt)=>`<span class="sm-seg">${vals.map(v=>`<button type="button" class="${c[key]===v?'on':''}" onclick="smSave({${key}:${v}})">${fmt(v)}</button>`).join('')}</span>`;
   const sw=(key,val)=>`<button type="button" class="hol-sw${val?' on':''}" role="switch" aria-checked="${!!val}" aria-label="${key}" onclick="smSave({${key}:${!val}})"></button>`;
   el.innerHTML=`<div class="hol-admin" style="display:block"><div style="display:flex;gap:12px;align-items:flex-start"><div class="m"><b>📍 Smart check-in</b>
     <small>${on?'On for everyone.':'Off for everyone. No location checks or auto check-ins.'} Academy: ${ciEsc(SM_ACADEMY.label)}</small>
-    <small>Instructors who allow location are checked in automatically at the academy, with a 5-second countdown they can cancel. Check-ins made elsewhere show ⚠ Away in Reports.</small></div>${sw('enabled',on)}</div>
-    ${on?`<div class="sm-set"><span>Zone size</span>${seg('radius',[100,150,250],v=>v+' m')}</div>
-    <div class="sm-set"><span>Auto check-in</span>${sw('auto',c.auto)}</div>
-    <div class="sm-set"><span>Flag check-ins made away</span>${sw('flag',c.flag)}</div>
-    <div class="sm-set"><span>Time window</span><span><select onchange="smSave({before:+this.value})">${[15,30,45,60].map(v=>`<option value="${v}"${c.before===v?' selected':''}>${v} min before</option>`).join('')}</select> <select onchange="smSave({after:+this.value})">${[0,10,15,30].map(v=>`<option value="${v}"${c.after===v?' selected':''}>${v} min after</option>`).join('')}</select></span></div>`:''}
+    <small>Instructors who allow location are checked in automatically at the academy, from 15 min before to 15 min after their class starts, with a 5-second countdown they can cancel. Check-ins made elsewhere always show ⚠ Away in Reports.</small></div>${sw('enabled',on)}</div>
+    ${on?`<div class="sm-set"><span>Zone size</span><span class="sm-seg">${SM_ZONES_FT.map(v=>`<button type="button" class="${c.radiusFt===v?'on':''}" onclick="smSave({radiusFt:${v}})">${v} ft</button>`).join('')}</span></div>
+    <div class="sm-set"><span>Auto check-in</span>${sw('auto',c.auto)}</div>`:''}
   </div>`;
 }
 async function smSave(patch){
-  const next=Object.assign(smCfg(),patch);delete next.lat;delete next.lng;DB.appConfig=DB.appConfig||{};const prev=DB.appConfig['app.smart'];
+  const cur=smCfg(),next={enabled:cur.enabled,radiusFt:cur.radiusFt,auto:cur.auto,...patch};DB.appConfig=DB.appConfig||{};const prev=DB.appConfig['app.smart'];
   DB.appConfig['app.smart']=JSON.stringify(next);smRenderAdmin();
   try{await supaFetch('ROLConfig?on_conflict=key',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'app.smart',value:DB.appConfig['app.smart'],updated_at:new Date().toISOString()})});
     logAuditAction('Changed','Setting','Smart check-in',Object.keys(patch).join(', '));}
