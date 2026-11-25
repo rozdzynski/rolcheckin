@@ -892,7 +892,7 @@ canvas.hol-flag{width:30px;height:20px;flex:none;border-radius:2px}
       ⏳ Loading accounts from server…
     </div>
     <div id="loginError" class="msg-box msg-error">Invalid username or password.</div>
-    <div class="login-foot" onclick="versionTap()">Orland Park, IL · v2026.11.2</div>
+    <div class="login-foot" onclick="versionTap()">Orland Park, IL · v2026.11.3</div>
   </div>
 </div>
 
@@ -7582,9 +7582,11 @@ function clOpen(id,btn){
 // Location is read once when the check-in page opens (never in the background). At the academy, around
 // one of your own classes, the app checks you in after a 5-second countdown you can cancel. Check-ins
 // made elsewhere are saved as "away" so admins can see them. Only at/away/none + distance are stored.
-const SM_DEFAULT={lat:null,lng:null,radius:150,auto:true,flag:true,before:30,after:15};
-function smCfg(){let c={};try{c=JSON.parse((DB.appConfig||{})['app.smart']||'{}')||{};}catch(e){}return Object.assign({},SM_DEFAULT,c);}
-function smConfigured(){const c=smCfg();return c.lat!=null&&c.lng!=null&&!isNaN(+c.lat)&&!isNaN(+c.lng);}
+// The academy's location is fixed (RŌL Academy, 15629 71st Ct, Orland Park, IL 60462) and can't be changed in the app.
+const SM_ACADEMY={lat:41.6068205,lng:-87.7928087,label:'15629 71st Ct, Orland Park, IL 60462'};
+const SM_DEFAULT={enabled:true,radius:150,auto:true,flag:true,before:30,after:15};
+function smCfg(){let c={};try{c=JSON.parse((DB.appConfig||{})['app.smart']||'{}')||{};}catch(e){}const o=Object.assign({},SM_DEFAULT,c);o.lat=SM_ACADEMY.lat;o.lng=SM_ACADEMY.lng;return o;}
+function smConfigured(){return smCfg().enabled!==false;}
 function smForMe(){return smConfigured()&&currentUser&&currentUser.role!=='admin'&&!!(navigator.geolocation);}
 function smConsent(){try{return localStorage.getItem(STORE_KEY+'_smart_'+currentUser.id)||'';}catch(e){return '';}}
 function smSetConsent(v){try{localStorage.setItem(STORE_KEY+'_smart_'+currentUser.id,v);}catch(e){}}
@@ -7693,43 +7695,23 @@ function smRenderAdmin(){
   if(!currentUser||currentUser.role!=='admin'){el.innerHTML='';return;}
   const c=smCfg(),on=smConfigured();
   const seg=(key,vals,fmt)=>`<span class="sm-seg">${vals.map(v=>`<button type="button" class="${c[key]===v?'on':''}" onclick="smSave({${key}:${v}})">${fmt(v)}</button>`).join('')}</span>`;
-  const sw=(key)=>`<button type="button" class="hol-sw${c[key]?' on':''}" role="switch" aria-checked="${!!c[key]}" onclick="smSave({${key}:${!c[key]}})"></button>`;
+  const sw=(key,val)=>`<button type="button" class="hol-sw${val?' on':''}" role="switch" aria-checked="${!!val}" aria-label="${key}" onclick="smSave({${key}:${!val}})"></button>`;
   el.innerHTML=`<div class="hol-admin" style="display:block"><div style="display:flex;gap:12px;align-items:flex-start"><div class="m"><b>📍 Smart check-in</b>
-    <small>${on?`On · academy set at ${(+c.lat).toFixed(5)}, ${(+c.lng).toFixed(5)}`:'Off · set the academy location to turn it on.'}</small>
-    <small>Instructors who allow location are checked in automatically at the academy, with a 5-second countdown they can cancel. Check-ins made elsewhere show ⚠ Away in Reports.</small></div></div>
-    <div class="sm-set"><span>Academy location</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="sm-btn" onclick="smUseHere()">📍 Use where I am now</button><button type="button" class="sm-btn" onclick="smEnterCoords()">Enter coordinates</button></span></div>
-    <div id="smCoordRow" style="display:none" class="sm-set"><input id="smCoordInput" class="field-input" style="flex:1;min-width:180px;height:36px" placeholder="41.6012, -87.8534 (copy from Google Maps)"><button type="button" class="sm-btn" onclick="smSaveCoords()">Save</button></div>
+    <small>${on?'On for everyone.':'Off for everyone. No location checks or auto check-ins.'} Academy: ${ciEsc(SM_ACADEMY.label)}</small>
+    <small>Instructors who allow location are checked in automatically at the academy, with a 5-second countdown they can cancel. Check-ins made elsewhere show ⚠ Away in Reports.</small></div>${sw('enabled',on)}</div>
     ${on?`<div class="sm-set"><span>Zone size</span>${seg('radius',[100,150,250],v=>v+' m')}</div>
-    <div class="sm-set"><span>Auto check-in</span>${sw('auto')}</div>
-    <div class="sm-set"><span>Flag check-ins made away</span>${sw('flag')}</div>
-    <div class="sm-set"><span>Time window</span><span><select onchange="smSave({before:+this.value})">${[15,30,45,60].map(v=>`<option value="${v}"${c.before===v?' selected':''}>${v} min before</option>`).join('')}</select> <select onchange="smSave({after:+this.value})">${[0,10,15,30].map(v=>`<option value="${v}"${c.after===v?' selected':''}>${v} min after</option>`).join('')}</select></span></div>
-    <div class="sm-set"><span></span><button type="button" class="sm-link" style="color:var(--rust,#b84c2e)" onclick="smTurnOffAll()">Turn smart check-in off</button></div>`:''}
-    <div id="smMsg" class="msg-box" style="display:none;margin-top:8px"></div></div>`;
+    <div class="sm-set"><span>Auto check-in</span>${sw('auto',c.auto)}</div>
+    <div class="sm-set"><span>Flag check-ins made away</span>${sw('flag',c.flag)}</div>
+    <div class="sm-set"><span>Time window</span><span><select onchange="smSave({before:+this.value})">${[15,30,45,60].map(v=>`<option value="${v}"${c.before===v?' selected':''}>${v} min before</option>`).join('')}</select> <select onchange="smSave({after:+this.value})">${[0,10,15,30].map(v=>`<option value="${v}"${c.after===v?' selected':''}>${v} min after</option>`).join('')}</select></span></div>`:''}
+  </div>`;
 }
 async function smSave(patch){
-  const next=Object.assign(smCfg(),patch);DB.appConfig=DB.appConfig||{};const prev=DB.appConfig['app.smart'];
+  const next=Object.assign(smCfg(),patch);delete next.lat;delete next.lng;DB.appConfig=DB.appConfig||{};const prev=DB.appConfig['app.smart'];
   DB.appConfig['app.smart']=JSON.stringify(next);smRenderAdmin();
   try{await supaFetch('ROLConfig?on_conflict=key',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'app.smart',value:DB.appConfig['app.smart'],updated_at:new Date().toISOString()})});
     logAuditAction('Changed','Setting','Smart check-in',Object.keys(patch).join(', '));}
   catch(e){DB.appConfig['app.smart']=prev;smRenderAdmin();showSaveErrorToast("Couldn't save the smart check-in setting. Please try again.");}
 }
-function smUseHere(){
-  if(!navigator.geolocation){appAlert('This device can\'t share its location.');return;}
-  const m=document.getElementById('smMsg');if(m){m.className='msg-box';m.textContent='Getting your location… stand inside the academy.';m.style.display='block';}
-  navigator.geolocation.getCurrentPosition(p=>{
-    const acc=Math.round(p.coords.accuracy||0);
-    appConfirm('Set academy location','Use this spot as the academy? (accurate to about '+Math.round(acc*3.281)+' ft) Do this while you\'re inside RŌL Academy.','Use this spot','btn-primary',
-      ()=>smSave({lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6)}));
-    if(m)m.style.display='none';
-  },err=>{if(m){m.className='msg-box msg-error';m.textContent=err.code===1?'Location is blocked for this browser. Allow it in settings, or enter coordinates instead.':'Couldn\'t get your location. Try again, or enter coordinates.';}},{enableHighAccuracy:true,timeout:15000,maximumAge:0});
-}
-function smEnterCoords(){const r=document.getElementById('smCoordRow');if(r){r.style.display='flex';document.getElementById('smCoordInput').focus();}}
-function smSaveCoords(){
-  const v=(document.getElementById('smCoordInput').value||'').match(/(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
-  if(!v||Math.abs(+v[1])>90||Math.abs(+v[2])>180){const m=document.getElementById('smMsg');if(m){m.className='msg-box msg-error';m.textContent='Paste coordinates like 41.6012, -87.8534 (in Google Maps, press and hold the academy, then copy the numbers).';m.style.display='block';}return;}
-  smSave({lat:+(+v[1]).toFixed(6),lng:+(+v[2]).toFixed(6)});
-}
-function smTurnOffAll(){appConfirm('Turn off smart check-in','No more location checks or auto check-ins. Past check-ins keep their location tags.','Turn off','btn-rust',()=>smSave({lat:null,lng:null}));}
 // In-app replacement for the browser's alert() box
 // Tap the version on the login screen 5 times to show the Debug button and sync dot
 let _vTaps=0,_vTapTimer=null;
