@@ -846,6 +846,27 @@ canvas.hol-flag{width:30px;height:20px;flex:none;border-radius:2px}
 #clToast{position:fixed;left:50%;bottom:calc(84px + env(safe-area-inset-bottom));transform:translate(-50%,8px);width:min(440px,calc(100vw - 24px));background:#0d0f12;color:#fff;border-radius:10px;padding:11px 14px;font-size:13px;display:flex;gap:10px;align-items:center;opacity:0;transition:.3s;pointer-events:none;z-index:9500;box-shadow:0 10px 30px rgba(0,0,0,.3)}
 #clToast.show{opacity:1;transform:translate(-50%,0);pointer-events:auto}
 #clToast button{margin-left:auto;background:none;border:0;color:#93c5fd;font:inherit;font-weight:700;cursor:pointer;padding:2px 4px}
+
+/* ── Smart check-in ── */
+.sm-banner{display:flex;gap:9px;align-items:center;border-radius:10px;padding:9px 12px;font-size:12.5px;font-weight:600;margin-bottom:10px;line-height:1.35}
+.sm-banner small{display:block;font-weight:500;font-size:11.5px;opacity:.85;margin-top:1px}
+.sm-banner.at{background:#ecfdf5;color:#15803d}.sm-banner.away{background:#fffbeb;color:#b45309}.sm-banner.none{background:#f1f2f4;color:var(--slate)}
+.sm-banner button{margin-left:auto;font:inherit;font-size:12px;font-weight:700;background:none;border:0;color:var(--primary);cursor:pointer;white-space:nowrap}
+.sm-card{background:#fff;border:1.5px solid var(--primary);border-radius:14px;padding:14px;margin-bottom:12px;text-align:center;box-shadow:0 8px 24px rgba(26,92,245,.12)}
+.sm-card.ok{border-color:#a7f3d0;background:#ecfdf5;box-shadow:none}
+.sm-card h4{font-size:15px;margin:0}.sm-card p{font-size:12.5px;color:var(--slate);margin:3px 0 0;line-height:1.4}
+.sm-card ul{font-size:12px;color:var(--ink2);text-align:left;margin:8px 0 0 18px;line-height:1.6}
+.sm-ring{width:70px;height:70px;margin:0 auto 8px;position:relative}.sm-ring svg{transform:rotate(-90deg)}
+.sm-ring b{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:24px;font-weight:800;color:var(--primary)}
+.sm-row{display:flex;gap:8px;margin-top:12px}.sm-row button{flex:1;font:inherit;font-size:13px;font-weight:700;border-radius:10px;padding:10px 0;cursor:pointer;border:1px solid var(--border);background:#fff;color:var(--ink2)}
+.sm-row .go{background:var(--primary);border-color:var(--primary);color:#fff}
+.sm-link{display:inline-block;margin-top:8px;font:inherit;font-size:12.5px;font-weight:700;color:var(--primary);background:none;border:0;cursor:pointer}
+.loc-tag{display:inline-block;font-size:10px;font-weight:700;border-radius:999px;padding:2px 7px;margin:3px 4px 0 0;white-space:nowrap}
+.loc-tag.at{background:#ecfdf5;color:#15803d}.loc-tag.away{background:#fef3c7;color:#b45309}.loc-tag.none{background:#f1f2f4;color:#64748b}.loc-tag.auto{background:var(--plight,#eaf1ff);color:var(--primary)}
+.sm-seg{display:inline-flex;background:#e9ebef;border-radius:8px;padding:2px;gap:2px}.sm-seg button{font:inherit;font-size:11.5px;font-weight:600;color:var(--slate);border:0;background:none;border-radius:6px;padding:5px 9px;cursor:pointer}.sm-seg button.on{background:#fff;color:var(--ink);box-shadow:0 1px 2px rgba(0,0,0,.08)}
+.sm-set{display:flex;align-items:center;gap:10px;justify-content:space-between;margin-top:9px;font-size:12.5px;flex-wrap:wrap}
+.sm-set select{font:inherit;font-size:12.5px;border:1px solid var(--border);border-radius:7px;padding:4px 6px;background:#fff}
+.sm-btn{font:inherit;font-size:12.5px;font-weight:700;border:1px solid var(--border);background:#fff;color:var(--ink2);border-radius:8px;padding:6px 10px;cursor:pointer}
 </style>
 </head>
 <body>
@@ -871,7 +892,7 @@ canvas.hol-flag{width:30px;height:20px;flex:none;border-radius:2px}
       ⏳ Loading accounts from server…
     </div>
     <div id="loginError" class="msg-box msg-error">Invalid username or password.</div>
-    <div class="login-foot" onclick="versionTap()">Orland Park, IL · v2026.11.1</div>
+    <div class="login-foot" onclick="versionTap()">Orland Park, IL · v2026.11.2</div>
   </div>
 </div>
 
@@ -929,6 +950,7 @@ canvas.hol-flag{width:30px;height:20px;flex:none;border-radius:2px}
         </div>
       </div>
       <div id="checkinWarning" style="display:none" class="msg-box msg-error"></div>
+      <div id="smartWrap"></div>
       <div id="checkinForm">
         <!-- Sub toggle — compact -->
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:10px;flex-wrap:wrap">
@@ -1120,6 +1142,8 @@ canvas.hol-flag{width:30px;height:20px;flex:none;border-radius:2px}
           <select id="filterClass" onchange="renderReports()"><option value="">All Classes</option></select>
           <span class="fs-lbl">Type</span>
           <select id="filterType" onchange="renderReports()"><option value="">All Types</option><option value="own">Own</option><option value="sub">Substitute</option><option value="extra">★ Extra</option></select>
+          <span class="fs-lbl">Location</span>
+          <select id="filterLoc" onchange="renderReports()"><option value="">Any location</option><option value="at">📍 At academy</option><option value="away">⚠ Away</option><option value="none">No location</option><option value="auto">⚡ Auto check-ins</option></select>
           <span class="fs-lbl">Team</span>
           <select id="filterTeam" onchange="renderReports()"><option value="">All Teams</option><option value="adults">Adults</option><option value="kids">Kids</option><option value="fitness">Fitness</option><option value="striking">Striking</option><option value="fis">FIS</option><option value="roltv">RŌL TV</option></select>
           <span class="fs-lbl">From</span>
@@ -1298,6 +1322,7 @@ canvas.hol-flag{width:30px;height:20px;flex:none;border-radius:2px}
       </div>
       <div id="annPaneAnn">
         <div id="holAdminCard"></div>
+        <div id="smartAdminCard"></div>
         <div id="announcementsActive"></div>
         <div style="margin-top:20px" id="announcementsExpired"></div>
       </div>
@@ -2211,7 +2236,8 @@ function rowToInstructor(r){
 
 function rowToCheckin(r){ return {id:r.id, instructorId:r.instructorId, classId:r.classId,
   date:r.date, time:r.time||'', type:r.type||'own', subForId:r.subForId||'',
-  note:r.note||'', archived:r.archived||false, extraName:r.extraName||'', extraTeam:r.extraTeam||''}; }
+  note:r.note||'', archived:r.archived||false, extraName:r.extraName||'', extraTeam:r.extraTeam||'',
+  locStatus:r.locStatus||'', locDist:r.locDist==null?null:Number(r.locDist), auto:!!r.auto}; }
 // ── Extra check-ins: added by an admin for work that isn't on the schedule (counts as 1 paid class) ──
 const CI_TEAM_NAMES={adults:'Adults',kids:'Kids',fitness:'Fitness',striking:'Striking',fis:'FIS',roltv:'RŌL TV'};
 function isExtra(c){return !!c&&c.type==='extra';}
@@ -2257,7 +2283,9 @@ function checkinToRow(ci){ return {
   time:ci.time||'', type:ci.type||'own', subForId:ci.subForId||'',
   note:ci.note||'', archived:ci.archived||false,
   // only sent for extras, so normal check-ins keep working even before the extra columns exist
-  ...((ci.type==='extra'||ci.extraName)?{extraName:ci.type==='extra'?(ci.extraName||''):'',extraTeam:ci.type==='extra'?(ci.extraTeam||''):''}:{})
+  ...((ci.type==='extra'||ci.extraName)?{extraName:ci.type==='extra'?(ci.extraName||''):'',extraTeam:ci.type==='extra'?(ci.extraTeam||''):''}:{}),
+  // smart check-in: only sent when the check-in has a location result (and the columns exist)
+  ...(ci.locStatus&&!_smNoCols?{locStatus:ci.locStatus,locDist:ci.locDist==null?null:Math.round(ci.locDist),auto:!!ci.auto}:{})
 }; }
 
 function timeOffToRow(t){ return {
@@ -2377,7 +2405,13 @@ async function wixSaveInstructor(instr){
 async function wixDeleteInstructor(id){
   try{ await supaFetch('ROLInstructors?id=eq.'+id,{method:'DELETE'}); dbg('Deleted instructor ✓','#4a7c59'); }catch(e){dbg('Delete instructor: '+e.message,'#b84c2e');showSaveErrorToast('Could not delete instructor. Please try again.');}
 }
+let _smNoCols=false;
 async function wixSaveCheckin(ci){
+  if(ci.locStatus&&!_smNoCols){
+    try{ const row=checkinToRow(ci); const res=row.id?await supaFetch('ROLCheckins?id=eq.'+row.id,{method:'PATCH',body:JSON.stringify(row)}):await supaFetch('ROLCheckins',{method:'POST',body:JSON.stringify(row)}); await _syncId('ROLCheckins',ci.id,Array.isArray(res)?res[0]:res); dbg('Saved check-in ✓','#4a7c59'); return; }
+    catch(e){ if(!/locStatus|locDist|auto|column/i.test(e.message||'')){dbg('Save check-in: '+e.message,'#b84c2e');showSaveErrorToast('Could not save check-in. Please try again.');return;}
+      _smNoCols=true; dbg('Location columns missing — saving check-in without location (run rol-smart-checkin.sql)','#b84c2e'); }
+  }
   try{ const row=checkinToRow(ci); const res=row.id?await supaFetch('ROLCheckins?id=eq.'+row.id,{method:'PATCH',body:JSON.stringify(row)}):await supaFetch('ROLCheckins',{method:'POST',body:JSON.stringify(row)}); await _syncId('ROLCheckins',ci.id,Array.isArray(res)?res[0]:res); dbg('Saved check-in ✓','#4a7c59'); }catch(e){dbg('Save check-in: '+e.message,'#b84c2e');showSaveErrorToast('Could not save check-in. Please try again.');}
 }
 async function wixDeleteCheckin(id){
@@ -4204,6 +4238,7 @@ function renderProfilePage(){
   renderDocs();
 }
 function renderCheckinPage(){
+  setTimeout(()=>{try{smOnCheckinPage();}catch(e){dbg('Smart check-in: '+e.message,'#b84c2e');}},0);
   const today=todayStr();
   const selectedDate=checkinDateStr();
   document.getElementById('todayDateLabel').textContent=new Date(selectedDate+'T00:00:00').toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
@@ -4416,7 +4451,7 @@ async function submitCheckin(confirmedOthers){
 
   const classNames=toSave.map(id=>{const c=getClass(id);return c?c.name:'—';}).join(', ');
   toSave.forEach(classId=>{
-    const rec={id:uid(),instructorId:currentUser.id,classId,date:today,time,type:ciType,subForId,note};
+    const rec={id:uid(),instructorId:currentUser.id,classId,date:today,time,type:ciType,subForId,note,...smRecFields(today)};
     DB.checkins.push(rec);
     wixSaveCheckin(rec);
   });
@@ -4479,7 +4514,7 @@ function renderTeamHistory(){
   document.getElementById('teamHistCount').textContent=total+' check-in'+(total===1?'':'s')+(total>300?' (showing newest 300)':'');
   document.getElementById('teamHistoryBody').innerHTML=rows.length?rows.map(r=>{
     const typeBadge=ciTypeBadge(r);
-    const subFor=(r.type==='sub'&&r.subForId?`<div style="font-size:11px;color:#6d28d9;margin-top:2px">for ${teamEsc((getInstructor(r.subForId)||{name:'?'}).name)}</div>`:'')+ciByLine(r);
+    const subFor=(r.type==='sub'&&r.subForId?`<div style="font-size:11px;color:#6d28d9;margin-top:2px">for ${teamEsc((getInstructor(r.subForId)||{name:'?'}).name)}</div>`:'')+ciByLine(r)+smLocLine(r);
     const noteIcon=r.note?`<span style="cursor:help;margin-left:4px" title="${teamEsc(r.note)}">📝</span>`:'';
     return `<tr>
       <td style="white-space:nowrap">${fmtDateShort(r.date)}</td>
@@ -4507,7 +4542,7 @@ function renderMyHistory(){
   const twoDaysAgo=twoDaysAgoStr();
   document.getElementById('myHistoryBody').innerHTML=rows.length?rows.map(r=>{
     const typeBadge=ciTypeBadge(r);
-    const subFor=(r.type==='sub'&&r.subForId?`<div style="font-size:11px;color:#6d28d9;margin-top:2px">for ${(getInstructor(r.subForId)||{name:'?'}).name}</div>`:'')+ciByLine(r);
+    const subFor=(r.type==='sub'&&r.subForId?`<div style="font-size:11px;color:#6d28d9;margin-top:2px">for ${(getInstructor(r.subForId)||{name:'?'}).name}</div>`:'')+ciByLine(r)+smLocLine(r);
     const noteIcon=r.note?`<span style="cursor:help;margin-left:4px" title="${ciEsc(r.note)}">📝</span>`:'';
     const canEdit=!isExtra(r)&&(r.date===today||r.date===yesterday||r.date===twoDaysAgo);
     const actions=isExtra(r)?'<span class="ci-lock" title="Only an admin can change this" aria-label="Only an admin can change this">🔒</span>':canEdit?rowMenu([['Edit',`instrEditCheckin('${r.id}')`],['Delete',`instrDeleteCheckin('${r.id}')`,'danger']]):'';
@@ -4653,7 +4688,7 @@ function annIcon(priority){
 }
 
 function renderAnnouncements(){
-  holRenderAdmin();
+  holRenderAdmin();smRenderAdmin();
   const today=todayStr();
   const scheduled=DB.announcements.filter(a=>a.active&&(!a.expiresAt||a.expiresAt>=today)&&annScheduled(a))
     .sort((a,b)=>a.publishAt.localeCompare(b.publishAt));
@@ -5240,6 +5275,8 @@ function renderReports(){
   if(iid) rows=rows.filter(r=>r.instructorId===iid);
   if(cid) rows=rows.filter(r=>r.classId===cid);
   if(typ) rows=rows.filter(r=>r.type===typ);
+  const locF=document.getElementById('filterLoc')?.value||'';
+  if(locF) rows=rows.filter(r=>locF==='auto'?r.auto:r.locStatus===locF);
   if(team){rows=rows.filter(r=>{if(isExtra(r))return r.extraTeam===team;const instr=getInstructor(r.instructorId);const cl=getClass(r.classId);return (instr&&Array.isArray(instr.teams)&&instr.teams.includes(team))||(cl&&cl.team===team);});}
   if(from) rows=rows.filter(r=>r.date>=from);
   if(to)   rows=rows.filter(r=>r.date<=to);
@@ -5254,7 +5291,7 @@ function renderReports(){
   document.getElementById('reportBody').innerHTML=rows.length?rows.map(r=>{
     const i=getInstructor(r.instructorId);const cl=isExtra(r)?null:getClass(r.classId);
     const typeBadge=ciTypeBadge(r);
-    const subFor=(r.type==='sub'&&r.subForId?`<div style="font-size:11px;color:#6d28d9">for ${(getInstructor(r.subForId)||{name:'?'}).name}</div>`:'')+ciByLine(r);
+    const subFor=(r.type==='sub'&&r.subForId?`<div style="font-size:11px;color:#6d28d9">for ${(getInstructor(r.subForId)||{name:'?'}).name}</div>`:'')+ciByLine(r)+smLocLine(r);
     const note=r.note?`<span class="note-pill" title="${ciEsc(r.note)}">📝 ${ciEsc(r.note)}</span>`:'—';
     const isArchived=!!r.archived;
     const rowStyle=isArchived?'opacity:.55;background:#fafafa;':'';
@@ -5273,7 +5310,7 @@ function renderReports(){
   }).join(''):emptyRow(9,'🔍','No records match','Try changing or clearing the filters.','Clear filters','clearFilters()');
 }
 function clearFilters(){
-  ['filterInstructor','filterClass','filterType','filterTeam','filterDateFrom','filterDateTo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
+  ['filterInstructor','filterClass','filterType','filterLoc','filterTeam','filterDateFrom','filterDateTo'].forEach(id=>{const el=document.getElementById(id);if(el)el.value='';});
   showArchived=false;
   const btn=document.getElementById('btnShowArchived');
   if(btn){btn.classList.remove('on');btn.textContent='Show archived';}
@@ -5338,9 +5375,9 @@ function exportCSV(){
     const i=getInstructor(r.instructorId);const cl=isExtra(r)?null:getClass(r.classId);
     const subFor=r.type==='sub'&&r.subForId?(getInstructor(r.subForId)||{name:''}).name:'';
     const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
-    return [r.date,i?.name||'',ciName(r),classStartTime(cl),r.time?fmtTime(r.time):'',r.type,subFor,isExtra(r)?(CI_TEAM_NAMES[r.extraTeam]||r.extraTeam):((cl&&CI_TEAM_NAMES[cl.team])||(cl&&cl.team)||''),r.note||''].map(q).join(',');
+    return [r.date,i?.name||'',ciName(r),classStartTime(cl),r.time?fmtTime(r.time):'',r.type,subFor,isExtra(r)?(CI_TEAM_NAMES[r.extraTeam]||r.extraTeam):((cl&&CI_TEAM_NAMES[cl.team])||(cl&&cl.team)||''),smLocText(r),r.note||''].map(q).join(',');
   });
-  const csv='Date,Instructor,Class,Class Time,Checked In,Type,Sub For,Team,Note\n'+rows.join('\n');
+  const csv='Date,Instructor,Class,Class Time,Checked In,Type,Sub For,Team,Location,Note\n'+rows.join('\n');
   const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
   a.download=`attendance-${todayStr()}.csv`;a.click();
 }
@@ -7540,6 +7577,159 @@ function clOpen(id,btn){
   clSetAnswer(id,'open');logAuditAction('Marked open','Holiday',a.n,clRangeLbl(a));rerenderActivePage();
   clToast(`Got it. You're open for ${a.n}.`,()=>{clSetAnswer(id,'');rerenderActivePage();});
 }
+
+// ══ SMART CHECK-IN ══
+// Location is read once when the check-in page opens (never in the background). At the academy, around
+// one of your own classes, the app checks you in after a 5-second countdown you can cancel. Check-ins
+// made elsewhere are saved as "away" so admins can see them. Only at/away/none + distance are stored.
+const SM_DEFAULT={lat:null,lng:null,radius:150,auto:true,flag:true,before:30,after:15};
+function smCfg(){let c={};try{c=JSON.parse((DB.appConfig||{})['app.smart']||'{}')||{};}catch(e){}return Object.assign({},SM_DEFAULT,c);}
+function smConfigured(){const c=smCfg();return c.lat!=null&&c.lng!=null&&!isNaN(+c.lat)&&!isNaN(+c.lng);}
+function smForMe(){return smConfigured()&&currentUser&&currentUser.role!=='admin'&&!!(navigator.geolocation);}
+function smConsent(){try{return localStorage.getItem(STORE_KEY+'_smart_'+currentUser.id)||'';}catch(e){return '';}}
+function smSetConsent(v){try{localStorage.setItem(STORE_KEY+'_smart_'+currentUser.id,v);}catch(e){}}
+function smDist(a,b,c,d){const R=6371000,r=x=>x*Math.PI/180,dl=r(c-a),dn=r(d-b),h=Math.sin(dl/2)**2+Math.cos(r(a))*Math.cos(r(c))*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(h));}
+function smFmtDist(m){if(m==null)return '';const mi=m/1609.34;return mi>=0.1?(mi<10?mi.toFixed(1):Math.round(mi))+' mi':Math.round(m*3.281)+' ft';}
+let _smLoc=null,_smBusy=false,_smAuto=false,_smTimer=null,_smLast=null;
+function smLocate(force){
+  return new Promise(res=>{
+    if(!force&&_smLoc&&Date.now()-_smLoc.t<60000)return res(_smLoc);
+    if(_smBusy)return res(_smLoc);
+    _smBusy=true;
+    navigator.geolocation.getCurrentPosition(p=>{
+      const c=smCfg(),d=smDist(+c.lat,+c.lng,p.coords.latitude,p.coords.longitude);
+      // treat a fuzzy fix generously: inside if the reported spot OR its accuracy circle reaches the zone edge (capped)
+      const slack=Math.min(p.coords.accuracy||0,100);
+      _smLoc={status:d<=c.radius+slack?'at':'away',dist:d,t:Date.now()};_smBusy=false;res(_smLoc);
+    },err=>{_smLoc={status:'none',dist:null,t:Date.now(),denied:err&&err.code===1};_smBusy=false;res(_smLoc);},
+    {enableHighAccuracy:true,timeout:10000,maximumAge:30000});
+  });
+}
+function smRecFields(date){
+  if(!smForMe()||date!==todayStr())return {};
+  if(smConsent()!=='on')return {locStatus:'none',locDist:null,auto:false};
+  const fresh=_smLoc&&Date.now()-_smLoc.t<10*60000;
+  return {locStatus:fresh?_smLoc.status:'none',locDist:fresh&&_smLoc.dist!=null?Math.round(_smLoc.dist):null,auto:!!_smAuto};
+}
+function smLocLine(r){
+  if(!r||!r.locStatus)return '';
+  const c=smCfg();
+  const t=r.locStatus==='at'?'<span class="loc-tag at">📍 At academy</span>':r.locStatus==='away'?(c.flag?`<span class="loc-tag away">⚠ Away${r.locDist!=null?' · '+smFmtDist(r.locDist):''}</span>`:''):'<span class="loc-tag none">No location</span>';
+  return `<div>${t}${r.auto?'<span class="loc-tag auto">⚡ Auto</span>':''}</div>`;
+}
+function smLocText(r){if(!r||!r.locStatus)return '';return (r.locStatus==='at'?'At academy':r.locStatus==='away'?'Away'+(r.locDist!=null?' ('+smFmtDist(r.locDist)+')':''):'No location')+(r.auto?' · Auto':'');}
+function smClassMins(cl){const m=String(classStartTime(cl)||cl.schedule||'').match(/(\d{1,2})(?::(\d{2}))?\s*([ap])\.?m/i);if(!m)return null;let h=+m[1]%12;if(m[3].toLowerCase()==='p')h+=12;return h*60+(+(m[2]||0));}
+function smHandled(id){try{return sessionStorage.getItem(STORE_KEY+'_smh_'+todayStr()+'_'+id);}catch(e){return null;}}
+function smMark(id,v){try{sessionStorage.setItem(STORE_KEY+'_smh_'+todayStr()+'_'+id,v);}catch(e){}}
+function smCandidate(){
+  const c=smCfg(),today=todayStr(),now=new Date(),mins=now.getHours()*60+now.getMinutes(),dow=now.getDay();
+  if(DB.timeOff.some(t=>t.instructorId===currentUser.id&&t.startDate<=today&&t.endDate>=today))return null;
+  return DB.classes.filter(cl=>!cl.archived&&classIsOnDay(cl,dow)&&Array.isArray(cl.instructors)&&cl.instructors.includes(currentUser.id))
+    .map(cl=>({cl,m:smClassMins(cl)})).filter(x=>x.m!=null&&mins>=x.m-c.before&&mins<=x.m+c.after)
+    .filter(x=>!smHandled(x.cl.id)&&!DB.checkins.some(k=>k.classId===x.cl.id&&k.date===today&&!k.archived))
+    .sort((a,b)=>a.m-b.m)[0]||null;
+}
+function smBanner(){
+  const L=_smLoc;if(!L)return '<div class="sm-banner none">📍<div>Checking your location…</div></div>';
+  if(L.status==='at')return '<div class="sm-banner at">📍<div>You\'re at RŌL Academy<small>Checked just now</small></div></div>';
+  if(L.status==='away')return `<div class="sm-banner away">📍<div>You don't seem to be at the academy<small>About ${smFmtDist(L.dist)} away${smCfg().flag?' · check-ins from here are flagged':''}</small></div><button type="button" onclick="smRefresh()">Check again</button></div>`;
+  return `<div class="sm-banner none">📍<div>${L.denied?'Location is off for this app':'Couldn\'t get your location'}<small>Check-in works as usual.${L.denied?' To turn it on: iPhone Settings → Privacy → Location Services.':''}</small></div>${L.denied?'':'<button type="button" onclick="smRefresh()">Try again</button>'}</div>`;
+}
+function smWrap(){return document.getElementById('smartWrap');}
+async function smOnCheckinPage(){
+  const w=smWrap();if(!w)return;
+  if(!smForMe()||!document.getElementById('pageCheckin').classList.contains('active')){if(!_smTimer)w.innerHTML='';return;}
+  if(_smTimer||_smLast)return; // countdown or result card on screen
+  const consent=smConsent();
+  if(!consent){
+    w.innerHTML=`<div class="sm-card"><h4>📍 Check in automatically</h4><p>When you open the app at the academy near class time, we'll check you in for you.</p>
+      <ul><li>Only checked when you open the app</li><li>Never tracked in the background</li><li>Only "at the academy" or "not" is saved, not your exact location</li></ul>
+      <div class="sm-row"><button type="button" onclick="smSetConsent('off');smOnCheckinPage()">Not now</button><button type="button" class="go" onclick="smTurnOn()">Turn on</button></div></div>`;
+    return;
+  }
+  if(consent!=='on'){w.innerHTML='';return;}
+  if(checkinDay!=='today'){w.innerHTML='';return;}
+  if(!_smLoc||Date.now()-_smLoc.t>=60000){w.innerHTML=smBanner();await smLocate();}
+  if(_smTimer||_smLast)return;
+  w.innerHTML=smBanner();
+  const cand=_smLoc&&_smLoc.status==='at'&&smCfg().auto&&ciType==='own'?smCandidate():null;
+  if(cand)smStartCountdown(cand.cl);
+}
+function smTurnOn(){smSetConsent('on');_smLoc=null;smOnCheckinPage();}
+function smRefresh(){_smLoc=null;smOnCheckinPage();}
+function smStartCountdown(cl){
+  const w=smWrap();let left=5;
+  w.innerHTML=smBanner()+`<div class="sm-card" id="smCount"><div class="sm-ring"><svg width="70" height="70"><circle cx="35" cy="35" r="30" fill="none" stroke="#eaf1ff" stroke-width="6"/><circle id="smArc" cx="35" cy="35" r="30" fill="none" stroke="#1a5cf5" stroke-width="6" stroke-linecap="round" stroke-dasharray="189" stroke-dashoffset="0"/></svg><b id="smNum">5</b></div>
+    <h4>Checking you in to ${ciEsc(cl.name)}</h4><p>Today · ${ciEsc(classStartTime(cl)||'')}</p>
+    <div class="sm-row"><button type="button" onclick="smCancel('${cl.id}')">Cancel</button><button type="button" class="go" onclick="smGo('${cl.id}')">Check in now</button></div></div>`;
+  const arc=document.getElementById('smArc');requestAnimationFrame(()=>{if(arc){arc.style.transition='stroke-dashoffset 5s linear';arc.setAttribute('stroke-dashoffset','189');}});
+  clearInterval(_smTimer);_smTimer=setInterval(()=>{left--;const n=document.getElementById('smNum');if(n)n.textContent=Math.max(0,left);if(left<=0)smGo(cl.id);},1000);
+}
+function smCancel(id){clearInterval(_smTimer);_smTimer=null;smMark(id,'cancel');const w=smWrap();if(w)w.innerHTML=smBanner();}
+async function smGo(id){
+  clearInterval(_smTimer);_smTimer=null;if(smHandled(id))return;smMark(id,'done');
+  const cl=getClass(id);if(!cl)return;
+  selectedClasses.clear();selectedClasses.add(id);ciType='own';
+  const before=DB.checkins.length;_smAuto=true;
+  try{await submitCheckin(true);}finally{_smAuto=false;}
+  const rec=DB.checkins.slice(before).find(c=>c.classId===id&&c.instructorId===currentUser.id);
+  if(!rec)return;
+  _smLast=rec;
+  const w=smWrap();if(w)w.innerHTML=smBanner()+`<div class="sm-card ok"><div style="font-size:30px">✅</div><h4 style="color:#15803d">Checked in · ${ciEsc(rec.time)}</h4><p>${ciEsc(cl.name)} · 📍 at the academy</p><button type="button" class="sm-link" onclick="smUndo()">Undo</button></div>`;
+  const tst=document.getElementById('checkinToast');if(tst)tst.style.display='none';
+  setTimeout(()=>{if(_smLast===rec){_smLast=null;smOnCheckinPage();}},15000);
+}
+async function smUndo(){
+  const rec=_smLast;if(!rec)return;_smLast=null;
+  for(let i=0;i<25&&String(rec.id).startsWith('x');i++)await new Promise(r=>setTimeout(r,200)); // wait for the save to get its real id
+  DB.checkins=DB.checkins.filter(c=>c!==rec);save();wixDeleteCheckin(rec.id);
+  logAuditAction('Undid','Check-In',(getClass(rec.classId)||{name:'class'}).name,'Auto check-in removed by '+currentUser.name);
+  renderCheckinPage();const w=smWrap();if(w)w.innerHTML=smBanner();
+}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&currentUser&&document.getElementById('pageCheckin')?.classList.contains('active')){try{smOnCheckinPage();}catch(e){}}});
+// ── Admin settings ──
+function smRenderAdmin(){
+  const el=document.getElementById('smartAdminCard');if(!el)return;
+  if(!currentUser||currentUser.role!=='admin'){el.innerHTML='';return;}
+  const c=smCfg(),on=smConfigured();
+  const seg=(key,vals,fmt)=>`<span class="sm-seg">${vals.map(v=>`<button type="button" class="${c[key]===v?'on':''}" onclick="smSave({${key}:${v}})">${fmt(v)}</button>`).join('')}</span>`;
+  const sw=(key)=>`<button type="button" class="hol-sw${c[key]?' on':''}" role="switch" aria-checked="${!!c[key]}" onclick="smSave({${key}:${!c[key]}})"></button>`;
+  el.innerHTML=`<div class="hol-admin" style="display:block"><div style="display:flex;gap:12px;align-items:flex-start"><div class="m"><b>📍 Smart check-in</b>
+    <small>${on?`On · academy set at ${(+c.lat).toFixed(5)}, ${(+c.lng).toFixed(5)}`:'Off · set the academy location to turn it on.'}</small>
+    <small>Instructors who allow location are checked in automatically at the academy, with a 5-second countdown they can cancel. Check-ins made elsewhere show ⚠ Away in Reports.</small></div></div>
+    <div class="sm-set"><span>Academy location</span><span style="display:flex;gap:6px;flex-wrap:wrap"><button type="button" class="sm-btn" onclick="smUseHere()">📍 Use where I am now</button><button type="button" class="sm-btn" onclick="smEnterCoords()">Enter coordinates</button></span></div>
+    <div id="smCoordRow" style="display:none" class="sm-set"><input id="smCoordInput" class="field-input" style="flex:1;min-width:180px;height:36px" placeholder="41.6012, -87.8534 (copy from Google Maps)"><button type="button" class="sm-btn" onclick="smSaveCoords()">Save</button></div>
+    ${on?`<div class="sm-set"><span>Zone size</span>${seg('radius',[100,150,250],v=>v+' m')}</div>
+    <div class="sm-set"><span>Auto check-in</span>${sw('auto')}</div>
+    <div class="sm-set"><span>Flag check-ins made away</span>${sw('flag')}</div>
+    <div class="sm-set"><span>Time window</span><span><select onchange="smSave({before:+this.value})">${[15,30,45,60].map(v=>`<option value="${v}"${c.before===v?' selected':''}>${v} min before</option>`).join('')}</select> <select onchange="smSave({after:+this.value})">${[0,10,15,30].map(v=>`<option value="${v}"${c.after===v?' selected':''}>${v} min after</option>`).join('')}</select></span></div>
+    <div class="sm-set"><span></span><button type="button" class="sm-link" style="color:var(--rust,#b84c2e)" onclick="smTurnOffAll()">Turn smart check-in off</button></div>`:''}
+    <div id="smMsg" class="msg-box" style="display:none;margin-top:8px"></div></div>`;
+}
+async function smSave(patch){
+  const next=Object.assign(smCfg(),patch);DB.appConfig=DB.appConfig||{};const prev=DB.appConfig['app.smart'];
+  DB.appConfig['app.smart']=JSON.stringify(next);smRenderAdmin();
+  try{await supaFetch('ROLConfig?on_conflict=key',{method:'POST',headers:{'Prefer':'resolution=merge-duplicates,return=minimal'},body:JSON.stringify({key:'app.smart',value:DB.appConfig['app.smart'],updated_at:new Date().toISOString()})});
+    logAuditAction('Changed','Setting','Smart check-in',Object.keys(patch).join(', '));}
+  catch(e){DB.appConfig['app.smart']=prev;smRenderAdmin();showSaveErrorToast("Couldn't save the smart check-in setting. Please try again.");}
+}
+function smUseHere(){
+  if(!navigator.geolocation){appAlert('This device can\'t share its location.');return;}
+  const m=document.getElementById('smMsg');if(m){m.className='msg-box';m.textContent='Getting your location… stand inside the academy.';m.style.display='block';}
+  navigator.geolocation.getCurrentPosition(p=>{
+    const acc=Math.round(p.coords.accuracy||0);
+    appConfirm('Set academy location','Use this spot as the academy? (accurate to about '+Math.round(acc*3.281)+' ft) Do this while you\'re inside RŌL Academy.','Use this spot','btn-primary',
+      ()=>smSave({lat:+p.coords.latitude.toFixed(6),lng:+p.coords.longitude.toFixed(6)}));
+    if(m)m.style.display='none';
+  },err=>{if(m){m.className='msg-box msg-error';m.textContent=err.code===1?'Location is blocked for this browser. Allow it in settings, or enter coordinates instead.':'Couldn\'t get your location. Try again, or enter coordinates.';}},{enableHighAccuracy:true,timeout:15000,maximumAge:0});
+}
+function smEnterCoords(){const r=document.getElementById('smCoordRow');if(r){r.style.display='flex';document.getElementById('smCoordInput').focus();}}
+function smSaveCoords(){
+  const v=(document.getElementById('smCoordInput').value||'').match(/(-?\d{1,3}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)/);
+  if(!v||Math.abs(+v[1])>90||Math.abs(+v[2])>180){const m=document.getElementById('smMsg');if(m){m.className='msg-box msg-error';m.textContent='Paste coordinates like 41.6012, -87.8534 (in Google Maps, press and hold the academy, then copy the numbers).';m.style.display='block';}return;}
+  smSave({lat:+(+v[1]).toFixed(6),lng:+(+v[2]).toFixed(6)});
+}
+function smTurnOffAll(){appConfirm('Turn off smart check-in','No more location checks or auto check-ins. Past check-ins keep their location tags.','Turn off','btn-rust',()=>smSave({lat:null,lng:null}));}
 // In-app replacement for the browser's alert() box
 // Tap the version on the login screen 5 times to show the Debug button and sync dot
 let _vTaps=0,_vTapTimer=null;
